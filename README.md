@@ -9,16 +9,15 @@ npm install
 ```
 npm run serve
 ```
+### install Axios
+```
+npm install axios
+```
 
 ### Compiles and minifies for production
 ```
 npm run build
 ```
-
-### Lints and fixes files
+### install Axios
 ```
-npm run lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+npm install axios

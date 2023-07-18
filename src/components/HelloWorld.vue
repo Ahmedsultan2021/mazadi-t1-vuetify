@@ -1,58 +1,245 @@
 <template>
-  <div class="hello">
-    <h1>{{ msg }}</h1>
-    <p>
-      For a guide and recipes on how to configure / customize this project,<br>
-      check out the
-      <a href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>.
-    </p>
-    <h3>Installed CLI Plugins</h3>
-    <ul>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-babel" target="_blank" rel="noopener">babel</a></li>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-eslint" target="_blank" rel="noopener">eslint</a></li>
-    </ul>
-    <h3>Essential Links</h3>
-    <ul>
-      <li><a href="https://vuejs.org" target="_blank" rel="noopener">Core Docs</a></li>
-      <li><a href="https://forum.vuejs.org" target="_blank" rel="noopener">Forum</a></li>
-      <li><a href="https://chat.vuejs.org" target="_blank" rel="noopener">Community Chat</a></li>
-      <li><a href="https://twitter.com/vuejs" target="_blank" rel="noopener">Twitter</a></li>
-      <li><a href="https://news.vuejs.org" target="_blank" rel="noopener">News</a></li>
-    </ul>
-    <h3>Ecosystem</h3>
-    <ul>
-      <li><a href="https://router.vuejs.org" target="_blank" rel="noopener">vue-router</a></li>
-      <li><a href="https://vuex.vuejs.org" target="_blank" rel="noopener">vuex</a></li>
-      <li><a href="https://github.com/vuejs/vue-devtools#vue-devtools" target="_blank" rel="noopener">vue-devtools</a></li>
-      <li><a href="https://vue-loader.vuejs.org" target="_blank" rel="noopener">vue-loader</a></li>
-      <li><a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">awesome-vue</a></li>
-    </ul>
-  </div>
+  <v-container>
+    <v-row class="text-center">
+      <v-col>
+        <v-autocomplete
+          v-model="selectedMainCategory"
+          :items="mainCategories"
+          item-text="name"
+          item-value="id"
+          @change="getSubcategories"
+          label="Main Category"
+        ></v-autocomplete>
+
+        <v-autocomplete
+          v-model="selectedSubcategory"
+          :items="subcategories"
+          item-text="name"
+          item-value="id"
+          @change="getProperties"
+          label="SubCategory"
+        ></v-autocomplete>
+
+        <v-row>
+          <v-col
+            cols="12"
+            v-for="(property, index) in properties.slice(0, 3)"
+            :key="index"
+          >
+            <v-autocomplete
+              v-model="selectedProperties[index]"
+              :items="[...property.options, { id: 'other', name: 'Other' }]"
+              item-text="name"
+              item-value="id"
+              @change="fetchChildOptions(property, index)"
+              clearable
+              :label="property.name"
+            >
+              <template v-slot:selection="{ item }">
+                {{ item.name }}
+              </template>
+              <template v-slot:item="{ item }">
+                {{ item.name }}
+              </template>
+            </v-autocomplete>
+            <v-text-field
+              v-if="selectedProperties[index] === 'other'"
+              v-model="otherValues[index]"
+            ></v-text-field>
+          </v-col>
+        </v-row>
+
+        <div v-if="options.length">
+          <v-autocomplete
+            v-model="selectedOption"
+            :items="[...options, { id: 'other', name: 'Other' }]"
+            item-text="name"
+            item-value="id"
+            label="Model"
+            clearable
+            return-object
+            @change="handleOptionChange"
+          ></v-autocomplete>
+        </div>
+
+        <v-text-field
+          v-if="selectedOption && selectedOption.id === 'other'"
+          v-model="customOptionValue"
+          label="Other Value"
+        ></v-text-field>
+
+        <v-btn @click="displayFormContent" style="margin-top:30px" >Display Form Content</v-btn>
+      </v-col>
+      <v-col>
+
+        <v-simple-table v-if="displayTable">
+          <template v-slot:default>
+            <thead>
+              <tr>
+                <th class="text-left">Name</th>
+                <th class="text-left">Calories</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(data, index) in tableData" :key="index">
+                <td>{{ data.Property }}</td>
+                <td>{{ data.Value }}</td>
+              </tr>
+            </tbody>
+          </template>
+        </v-simple-table>
+
+      </v-col>
+    </v-row>
+  </v-container>
 </template>
-
 <script>
-export default {
-  name: 'HelloWorld',
-  props: {
-    msg: String
-  }
-}
-</script>
+import axios from "../../axios.config";
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
-<style scoped>
-h3 {
-  margin: 40px 0 0;
-}
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-li {
-  display: inline-block;
-  margin: 0 10px;
-}
-a {
-  color: #42b983;
-}
-</style>
+const API_URL_ALL_CATEGORIES =
+  "https://staging.mazaady.com/api/v1/get_all_cats";
+const API_URL_PROPERTIES = "https://staging.mazaady.com/api/v1/properties?cat=";
+const API_URL_OPTIONS_CHILD =
+  "https://staging.mazaady.com/api/v1/get-options-child/";
+
+export default {
+  data() {
+    return {
+      privateApiKey: "3%o8i}_;3D4bF]G5@22r2)Et1&mLJ4?$@+16",
+      selectedMainCategory: null,
+      selectedSubcategory: null,
+      selectedProperties: [],
+      otherValues: [],
+      selectedOption: null,
+      mainCategories: [],
+      subcategories: [],
+      properties: [],
+      options: [],
+      displayTable: false,
+      tableHeaders: ["Property", "Value"],
+      tableData: [],
+      customOptionValue:null
+    };
+  },
+  mounted() {
+    this.getMainCategories();
+  },
+  methods: {
+    async getMainCategories() {
+      try {
+        const response = await axios.get(API_URL_ALL_CATEGORIES, {
+          headers: {
+            "private-key": this.privateApiKey,
+          },
+        });
+        this.mainCategories = response.data.data.categories;
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    async getSubcategories() {
+      const selectedCategory = this.mainCategories.find(
+        (category) => category.id === this.selectedMainCategory
+      );
+      this.subcategories = selectedCategory?.children || [];
+      this.displayTable = false;
+    },
+    async getProperties() {
+      this.selectedProperties = ["", "", ""];
+      this.displayTable = false;
+
+      this.otherValues = [];
+      this.options = [];
+      this.selectedOption = "";
+      try {
+        const apiUrl = `${API_URL_PROPERTIES}${this.selectedSubcategory}`;
+        const response = await axios.get(apiUrl, {
+          headers: {
+            "private-key": this.privateApiKey,
+          },
+        });
+        this.properties = response.data.data;
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    async fetchChildOptions(property, index) {
+      this.displayTable = false;
+
+      const selectedProperty = this.selectedProperties[index];
+      if (property.name === "Brand" && selectedProperty !== "other") {
+        try {
+          const apiUrl = `${API_URL_OPTIONS_CHILD}${selectedProperty}`;
+          const response = await axios.get(apiUrl, {
+            headers: {
+              "private-key": this.privateApiKey,
+            },
+          });
+          this.options = response.data.data[0]?.options || [];
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    },
+
+    closeForm() {
+      this.displayTable = false;
+    },
+    displayFormContent() {
+      this.tableData = []; // Clear the table data
+      if (this.selectedMainCategory) {
+        const selectedMainCategory = this.mainCategories.find(
+          (category) => category.id === this.selectedMainCategory
+        );
+        this.tableData.push({
+          Property: "Main Category",
+          Value: selectedMainCategory.name,
+        });
+      }
+      console.log(this.tableData);
+
+      if (this.selectedSubcategory) {
+        const selectedSubcategory = this.subcategories.find(
+          (subcategory) => subcategory.id === this.selectedSubcategory
+        );
+        this.tableData.push({
+          Property: "Subcategory",
+          Value: selectedSubcategory.name,
+        });
+      }
+
+      this.properties.slice(0, 3).forEach((property, index) => {
+        const selectedValue = this.selectedProperties[index];
+        let value = "";
+
+        if (selectedValue !== "other") {
+          const selectedOption = property.options.find(
+            (option) => option.id === selectedValue
+          );
+          if (selectedOption) {
+            value = selectedOption.name;
+          }
+        } else {
+          value = this.otherValues[index];
+        }
+
+        if (value !== "") {
+          this.tableData.push({
+            Property: property.name,
+            Value: value,
+          });
+        }
+      });
+
+      if (this.selectedOption) {
+        this.tableData.push({
+          Property: "Model",
+          Value: (this.customOptionValue)?this.customOptionValue:this.selectedOption.name,
+        });
+      }
+
+      this.displayTable = true; // Show the table
+    },
+  },
+};
+</script>
