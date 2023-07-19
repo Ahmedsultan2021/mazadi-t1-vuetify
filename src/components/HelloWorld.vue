@@ -20,12 +20,8 @@
           label="SubCategory"
         ></v-autocomplete>
 
-        <v-row>
-          <v-col
-            cols="12"
-            v-for="(property, index) in properties.slice(0, 3)"
-            :key="index"
-          >
+        <v-row v-if="properties.length > 0">
+          <v-col cols="12" v-for="(property, index) in properties" :key="index">
             <v-autocomplete
               v-model="selectedProperties[index]"
               :items="[...property.options, { id: 'other', name: 'Other' }]"
@@ -35,12 +31,6 @@
               clearable
               :label="property.name"
             >
-              <template v-slot:selection="{ item }">
-                {{ item.name }}
-              </template>
-              <template v-slot:item="{ item }">
-                {{ item.name }}
-              </template>
             </v-autocomplete>
             <v-text-field
               v-if="selectedProperties[index] === 'other'"
@@ -48,30 +38,19 @@
             ></v-text-field>
           </v-col>
         </v-row>
+        <v-row v-else>
+          <v-col>
+            <!-- Display a message or alternative content when properties is empty -->
+            <p>No properties available.</p>
+          </v-col>
+        </v-row>
 
-        <div v-if="options.length">
-          <v-autocomplete
-            v-model="selectedOption"
-            :items="[...options, { id: 'other', name: 'Other' }]"
-            item-text="name"
-            item-value="id"
-            label="Model"
-            clearable
-            return-object
-            @change="handleOptionChange"
-          ></v-autocomplete>
-        </div>
-
-        <v-text-field
-          v-if="selectedOption && selectedOption.id === 'other'"
-          v-model="customOptionValue"
-          label="Other Value"
-        ></v-text-field>
-
-        <v-btn @click="displayFormContent" style="margin-top:30px" >Display Form Content</v-btn>
+        <v-btn @click="clearForm" style="margin-top: 30px">clear Form</v-btn>
+        <v-btn @click="displayForm" style="margin-top: 30px"
+          >Display Form Content</v-btn
+        >
       </v-col>
       <v-col>
-
         <v-simple-table v-if="displayTable">
           <template v-slot:default>
             <thead>
@@ -88,7 +67,6 @@
             </tbody>
           </template>
         </v-simple-table>
-
       </v-col>
     </v-row>
   </v-container>
@@ -108,24 +86,54 @@ export default {
       privateApiKey: "3%o8i}_;3D4bF]G5@22r2)Et1&mLJ4?$@+16",
       selectedMainCategory: null,
       selectedSubcategory: null,
+      selectedchildprop: null,
       selectedProperties: [],
       otherValues: [],
       selectedOption: null,
       mainCategories: [],
       subcategories: [],
       properties: [],
+      label1: null,
+      label2: null,
       options: [],
       displayTable: false,
       tableHeaders: ["Property", "Value"],
       tableData: [],
-      customOptionValue:null
+      customOptionValue: null,
+      childPropperities: [],
+      allData: [],
+      currentIndex: 1, // Index tracker for current element\
+      propsArray: [],
     };
+  },
+  watch: {
+    selectedMainCategory(newVal) {
+      this.properties = [];
+      this.tableData = [];
+      if (newVal === null) {
+        console.log("selectedMainCategory is null!");
+      }
+    },
+    selectedSubcategory(newVal) {
+      this.properties = [];
+      this.tableData = [];
+      if (newVal === null) {
+        console.log("selectedMainCategory is null!");
+      }
+    },
+   
+
   },
   mounted() {
     this.getMainCategories();
   },
+
   methods: {
     async getMainCategories() {
+      this.subcategories = [];
+      this.properties = [];
+      this.options = [];
+
       try {
         const response = await axios.get(API_URL_ALL_CATEGORIES, {
           headers: {
@@ -137,6 +145,22 @@ export default {
         console.error(error);
       }
     },
+
+    addnextprop() {
+      this.displayFormContent();
+      if (this.currentIndex < this.allData.length) {
+        const nextProperty = this.allData[this.currentIndex];
+        console.log("xxxxxxxxxxxxxxxxxx");
+        this.propsArray = this.properties.map((obj) => obj.name).flat();
+        console.log(this.propsArray);
+        console.log(nextProperty);
+        console.log("xxxxxxxxxxxxxxxxxx");
+        if (!this.propsArray.includes(nextProperty.name)) {
+          this.properties.push(nextProperty);
+          this.currentIndex++;
+        }
+      }
+    },
     async getSubcategories() {
       const selectedCategory = this.mainCategories.find(
         (category) => category.id === this.selectedMainCategory
@@ -145,9 +169,8 @@ export default {
       this.displayTable = false;
     },
     async getProperties() {
-      this.selectedProperties = ["", "", ""];
+      this.selectedProperties = [];
       this.displayTable = false;
-
       this.otherValues = [];
       this.options = [];
       this.selectedOption = "";
@@ -158,16 +181,19 @@ export default {
             "private-key": this.privateApiKey,
           },
         });
-        this.properties = response.data.data;
+        this.allData = response.data.data;
+        console.log(this.allData);
+        const firstProperty = response.data.data[0];
+        this.properties.push(firstProperty);
       } catch (error) {
         console.error(error);
       }
     },
     async fetchChildOptions(property, index) {
+      this.displayFormContent();
       this.displayTable = false;
-
       const selectedProperty = this.selectedProperties[index];
-      if (property.name === "Brand" && selectedProperty !== "other") {
+      if (selectedProperty !== "other") {
         try {
           const apiUrl = `${API_URL_OPTIONS_CHILD}${selectedProperty}`;
           const response = await axios.get(apiUrl, {
@@ -175,10 +201,22 @@ export default {
               "private-key": this.privateApiKey,
             },
           });
+          this.label1 = response.data.data[0].name;
           this.options = response.data.data[0]?.options || [];
+          const propertie = response.data.data[0];
+          this.propsArray = this.properties.map((obj) => obj.name).flat();
+          console.log(this.propsArray);
+          console.log(propertie);
+
+          if (!this.propsArray.includes(propertie.name)) {
+            this.properties.push(propertie);
+          }
         } catch (error) {
           console.error(error);
+          this.addnextprop();
         }
+      } else {
+        this.addnextprop();
       }
     },
 
@@ -208,7 +246,7 @@ export default {
         });
       }
 
-      this.properties.slice(0, 3).forEach((property, index) => {
+      this.properties.forEach((property, index) => {
         const selectedValue = this.selectedProperties[index];
         let value = "";
 
@@ -234,11 +272,32 @@ export default {
       if (this.selectedOption) {
         this.tableData.push({
           Property: "Model",
-          Value: (this.customOptionValue)?this.customOptionValue:this.selectedOption.name,
+          Value: this.customOptionValue
+            ? this.customOptionValue
+            : this.selectedOption.name,
         });
       }
-
+    },
+    displayForm() {
+      this.displayFormContent();
       this.displayTable = true; // Show the table
+    },
+    clearForm() {
+      this.displayFormContent();
+      this.tableData = []; // Show the table
+      this.properties = []; // Show the table
+      this.selectedProperties = [];
+      this.selectedMainCategory = null;
+      this.selectedSubcategory = null;
+      this.currentIndex = 1;
+      this.getMainCategories()
+        .then(() => {
+          return this.getSubcategories();
+        })
+
+        .catch((error) => {
+          console.log(error);
+        });
     },
   },
 };
