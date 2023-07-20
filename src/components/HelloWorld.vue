@@ -110,6 +110,7 @@ export default {
     selectedMainCategory(newVal) {
       this.properties = [];
       this.tableData = [];
+      this.selectedSubcategory = null;
       this.currentIndex = 1;
       if (newVal === null) {
         console.log("selectedMainCategory is null!");
@@ -119,6 +120,7 @@ export default {
       this.properties = [];
       this.tableData = [];
       this.currentIndex = 1;
+
       if (newVal === null) {
         console.log("selectedMainCategory is null!");
       }
